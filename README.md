@@ -12,27 +12,27 @@ Lightweight `Result`-based error handling for TypeScript, with strong tagged-err
 ## Install
 
 ```bash
-pnpm add nothrow
+pnpm add @nothrow
 ```
 
 ## ESM-only
 
-`nothrow` is published as **ESM-only**.
+`@nothrow` is published as **ESM-only**.
 
 - Use `import`/`export` syntax.
 - For Node.js projects, set `"type": "module"` in your `package.json`.
 - CommonJS (`require`) is not supported.
 
-If you are in a CommonJS codebase, you can still consume `nothrow` via dynamic import:
+If you are in a CommonJS codebase, you can still consume `@nothrow` via dynamic import:
 
 ```js
-const { Result } = await import('nothrow');
+const { Result } = await import('@nothrow');
 ```
 
 ## Quick Start
 
 ```ts
-import { Result, err, ok } from 'nothrow';
+import { Result, err, ok } from '@nothrow';
 
 const parsePort = (input: string) =>
   Result.try(() => {
@@ -78,7 +78,7 @@ Prefer `TaggedError`/`taggedError` for application and library boundaries.
 Plain object errors are also supported and remain useful for lightweight internal pipelines.
 
 ```ts
-import { Result } from 'nothrow';
+import { Result } from '@nothrow';
 
 const NotFound = Result.taggedError('NotFound')<{ id: string }>();
 
@@ -100,7 +100,7 @@ const user = loadUser('0')
 `Result.try` and `Result.tryAsync` support generator-based composition. This gives you early-exit behavior with linear, imperative-looking code.
 
 ```ts
-import { Result, err, ok } from 'nothrow';
+import { Result, err, ok } from '@nothrow';
 
 const readPort = (value: string) =>
   Result.try(() => {
@@ -124,7 +124,7 @@ const normalizePort = (raw: string) =>
 Async generators can mix sync and async chains in the same flow:
 
 ```ts
-import { Result, ok } from 'nothrow';
+import { Result, ok } from '@nothrow';
 
 const loadConfig = () => Result.tryAsync(async () => ok({ retry: 2 }));
 const readEnv = () => Result.try(() => ok('prod'));

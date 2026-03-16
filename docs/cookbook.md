@@ -1,6 +1,6 @@
 # Cookbook
 
-Practical examples for building robust error flows with `nothrow`.
+Practical examples for building robust error flows with `@nothrow`.
 
 ## Choosing an error shape
 
@@ -11,7 +11,7 @@ Practical examples for building robust error flows with `nothrow`.
 ## API client with typed recoveries
 
 ```ts
-import { Result } from 'nothrow';
+import { Result } from '@nothrow';
 
 const NetworkError = Result.taggedError('NetworkError')<{ url: string }>();
 const HttpError = Result.taggedError('HttpError')<{ status: number; url: string }>();
@@ -42,7 +42,7 @@ const data = await getJson('https://api.example.com/user/42')
 ## Database call wrapping
 
 ```ts
-import { Result } from 'nothrow';
+import { Result } from '@nothrow';
 
 const DbError = Result.taggedError('DbError')<{ query: string }>();
 
@@ -63,7 +63,7 @@ const user = Result.try(() => queryOne('SELECT * FROM users LIMIT 1'))
 ## Validation pipeline
 
 ```ts
-import { Result } from 'nothrow';
+import { Result } from '@nothrow';
 
 type ValidationError =
   | { _tag: 'Required'; field: string }
@@ -85,7 +85,7 @@ const normalized = validateEmail('USER@EXAMPLE.COM')
 ## Tag-based recovery with mixed errors
 
 ```ts
-import { Result, err } from 'nothrow';
+import { Result, err } from '@nothrow';
 
 const NotFound = Result.taggedError('NotFound')<{ id: string }>();
 const PermissionDenied = Result.taggedError('PermissionDenied')<{ role: string }>();
@@ -110,7 +110,7 @@ const profile = readProfile('missing')
 ## Generator-style orchestration with early exit
 
 ```ts
-import { Result, err, ok } from 'nothrow';
+import { Result, err, ok } from '@nothrow';
 
 const parseLimit = (input: string) =>
   Result.try(() => {
@@ -152,7 +152,7 @@ const pagination = parsePagination('20', '0').unwrapOr({ limit: 10, offset: 0 })
 ## Async generator flow mixing sync and async
 
 ```ts
-import { Result, err, ok } from 'nothrow';
+import { Result, err, ok } from '@nothrow';
 
 const fetchUser = (id: string) =>
   Result.tryAsync(async () => {
