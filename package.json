@@ -9,15 +9,15 @@
     "tagged-errors",
     "typescript"
   ],
-  "homepage": "https://github.com/mikku/nothrow#readme",
+  "homepage": "https://github.com/mikkurogue/nothrow#readme",
   "bugs": {
-    "url": "https://github.com/mikku/nothrow/issues"
+    "url": "https://github.com/mikkurogue/nothrow/issues"
   },
   "license": "MIT",
   "author": "mikku",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mikku/nothrow.git"
+    "url": "https://github.com/mikkurogue/nothrow.git"
   },
   "files": [
     "dist"
