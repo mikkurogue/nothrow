@@ -1,5 +1,5 @@
 {
-  "name": "@nothrow",
+  "name": "@mikkurogue/nothrow",
   "version": "0.0.1",
   "description": "Lightweight Result-based error handling for TypeScript.",
   "keywords": [
