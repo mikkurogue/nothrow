@@ -9,7 +9,7 @@ import type {
 } from './types';
 export type { Err, Ok, ResultValue } from './types';
 
-import { AsyncResultChain, SyncResultChain, setResolvers } from './core/chains';
+import { AsyncResultChain, type ChainResolvers, SyncResultChain } from './core/chains';
 import { hasTag, hasTags, isGenerator, isPromiseLike, isResultValue } from './core/guards';
 import { runAsyncGenerator, runSyncGenerator } from './core/generator';
 import { err, isErr, isOk, mapErrResult, mapResult, ok } from './core/result';
@@ -51,7 +51,10 @@ async function resolveAsyncInput<T, E>(
   return ok(awaited as T);
 }
 
-setResolvers(resolveSyncInput, resolveAsyncInput);
+const chainResolvers: ChainResolvers = {
+  resolveSyncInput,
+  resolveAsyncInput,
+};
 
 function andThenResult<T, E, U, F>(
   input: SyncInput<T, E>,
@@ -123,7 +126,7 @@ function trySync<TOutput>(
     }
   }
 
-  return new SyncResultChain(runTrySync);
+  return new SyncResultChain(runTrySync, chainResolvers);
 }
 
 function tryAsync<TOutput>(
@@ -147,7 +150,7 @@ function tryAsync<TOutput>(
     }
   }
 
-  return new AsyncResultChain(runTryAsync);
+  return new AsyncResultChain(runTryAsync, chainResolvers);
 }
 
 export const Result = {

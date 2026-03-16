@@ -15,7 +15,7 @@ import type {
 } from '../types';
 
 import { hasErrorTagIn, isObject } from './guards';
-import { err, isErr, isOk, mapErrResult, mapResult, unwrapOkOrThrow } from './result';
+import { err, isErr, isOk, ok, unwrapOkOrThrow } from './result';
 
 export type YieldInstruction<T, E> = {
   [RESULT_YIELD]: true;
@@ -23,6 +23,22 @@ export type YieldInstruction<T, E> = {
 };
 
 export const RESULT_YIELD = Symbol('nothrow.result.yield');
+
+export type ChainResolvers = {
+  resolveSyncInput: <T, E>(input: SyncInput<T, E>) => ResultValue<T, E>;
+  resolveAsyncInput: <T, E>(
+    input: AsyncInput<T, E> | Promise<AsyncInput<T, E>>,
+  ) => Promise<ResultValue<T, E>>;
+};
+
+const uninitializedResolvers: ChainResolvers = {
+  resolveSyncInput() {
+    throw new Error('Sync resolver is not initialized.');
+  },
+  async resolveAsyncInput() {
+    throw new Error('Async resolver is not initialized.');
+  },
+};
 
 export function isYieldInstruction<T, E>(value: unknown): value is YieldInstruction<T, E> {
   return isObject(value) && value[RESULT_YIELD] === true && typeof value.run === 'function';
@@ -39,9 +55,11 @@ export function makeYieldInstruction<T, E>(
 
 export class SyncResultChain<T, E> {
   private readonly runFn: () => ResultValue<T, E>;
+  private readonly resolvers: ChainResolvers;
 
-  constructor(runFn: () => ResultValue<T, E>) {
+  constructor(runFn: () => ResultValue<T, E>, resolvers: ChainResolvers = uninitializedResolvers) {
     this.runFn = runFn;
+    this.resolvers = resolvers;
   }
 
   toResult(): ResultValue<T, E> {
@@ -50,38 +68,52 @@ export class SyncResultChain<T, E> {
 
   map<U>(fn: (value: T) => U): SyncResultChain<U, E> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
     return new SyncResultChain(function runMap() {
-      return mapResult(runFn(), fn);
-    });
+      const result = runFn();
+      if (isErr(result)) {
+        return result;
+      }
+      return ok(fn(result.value));
+    }, resolvers);
   }
 
   mapErr<F>(fn: (error: E) => F): SyncResultChain<T, F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
     return new SyncResultChain(function runMapErr() {
-      return mapErrResult(runFn(), fn);
-    });
+      const result = runFn();
+      if (isOk(result)) {
+        return result;
+      }
+      return err(fn(result.error));
+    }, resolvers);
   }
 
   andThen<U, F>(fn: (value: T) => SyncInput<U, F>): SyncResultChain<U, E | F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveSyncInput = resolvers.resolveSyncInput;
     return new SyncResultChain(function runAndThen() {
       const result = runFn();
       if (isErr(result)) {
         return result as ResultValue<U, E | F>;
       }
       return resolveSyncInput(fn(result.value));
-    });
+    }, resolvers);
   }
 
   catchAll<U, F>(fn: (error: E) => SyncInput<U, F>): SyncResultChain<T | U, F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveSyncInput = resolvers.resolveSyncInput;
     return new SyncResultChain(function runCatchAll() {
       const result = runFn();
       if (isOk(result)) {
         return result as ResultValue<T | U, F>;
       }
       return resolveSyncInput(fn(result.error)) as ResultValue<T | U, F>;
-    });
+    }, resolvers);
   }
 
   catchTag<TTag extends ExtractTag<E>, U, F>(
@@ -89,6 +121,8 @@ export class SyncResultChain<T, E> {
     fn: (error: ExtractByTag<E, TTag>) => SyncInput<U, F>,
   ): SyncResultChain<T | U, ExcludeByTag<E, TTag> | F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveSyncInput = resolvers.resolveSyncInput;
     return new SyncResultChain(function runCatchTag() {
       const result = runFn();
       if (isOk(result)) {
@@ -98,7 +132,7 @@ export class SyncResultChain<T, E> {
         return resolveSyncInput(fn(result.error)) as ResultValue<T | U, ExcludeByTag<E, TTag> | F>;
       }
       return result as ResultValue<T | U, ExcludeByTag<E, TTag> | F>;
-    });
+    }, resolvers);
   }
 
   catchTags<THandlers extends SyncHandlers<E>>(
@@ -108,6 +142,8 @@ export class SyncResultChain<T, E> {
     ExcludeHandled<E, Extract<keyof THandlers, string>> | SyncHandlerError<THandlers>
   > {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveSyncInput = resolvers.resolveSyncInput;
     type TOutValue = T | SyncHandlerValue<THandlers>;
     type TOutError =
       | ExcludeHandled<E, Extract<keyof THandlers, string>>
@@ -129,7 +165,7 @@ export class SyncResultChain<T, E> {
       }
 
       return result as ResultValue<TOutValue, TOutError>;
-    });
+    }, resolvers);
   }
 
   tapTag<TTag extends ExtractTag<E>>(
@@ -137,6 +173,7 @@ export class SyncResultChain<T, E> {
     effect: (error: ExtractByTag<E, TTag>) => void,
   ): SyncResultChain<T, E> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
     return new SyncResultChain(function runTapTag() {
       const result = runFn();
       if (isErr(result) && hasErrorTagIn(result.error, tag)) {
@@ -147,7 +184,7 @@ export class SyncResultChain<T, E> {
         }
       }
       return result;
-    });
+    }, resolvers);
   }
 
   run(this: SyncResultChain<T, never>): T {
@@ -181,9 +218,14 @@ export class SyncResultChain<T, E> {
 
 export class AsyncResultChain<T, E> {
   private readonly runFn: () => Promise<ResultValue<T, E>>;
+  private readonly resolvers: ChainResolvers;
 
-  constructor(runFn: () => Promise<ResultValue<T, E>>) {
+  constructor(
+    runFn: () => Promise<ResultValue<T, E>>,
+    resolvers: ChainResolvers = uninitializedResolvers,
+  ) {
     this.runFn = runFn;
+    this.resolvers = resolvers;
   }
 
   toPromise(): Promise<ResultValue<T, E>> {
@@ -192,6 +234,7 @@ export class AsyncResultChain<T, E> {
 
   map<U>(fn: (value: T) => U | Promise<U>): AsyncResultChain<U, E> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
     return new AsyncResultChain(async function runMap() {
       const result = await runFn();
       if (isErr(result)) {
@@ -201,11 +244,12 @@ export class AsyncResultChain<T, E> {
         _tag: 'Ok',
         value: await fn(result.value),
       };
-    });
+    }, resolvers);
   }
 
   mapErr<F>(fn: (error: E) => F | Promise<F>): AsyncResultChain<T, F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
     return new AsyncResultChain(async function runMapErr() {
       const result = await runFn();
       if (isOk(result)) {
@@ -215,33 +259,37 @@ export class AsyncResultChain<T, E> {
         _tag: 'Err',
         error: await fn(result.error),
       };
-    });
+    }, resolvers);
   }
 
   andThen<U, F>(
     fn: (value: T) => AsyncInput<U, F> | Promise<AsyncInput<U, F>>,
   ): AsyncResultChain<U, E | F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveAsyncInput = resolvers.resolveAsyncInput;
     return new AsyncResultChain(async function runAndThen() {
       const result = await runFn();
       if (isErr(result)) {
         return result as ResultValue<U, E | F>;
       }
       return resolveAsyncInput(await fn(result.value));
-    });
+    }, resolvers);
   }
 
   catchAll<U, F>(
     fn: (error: E) => AsyncInput<U, F> | Promise<AsyncInput<U, F>>,
   ): AsyncResultChain<T | U, F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveAsyncInput = resolvers.resolveAsyncInput;
     return new AsyncResultChain(async function runCatchAll() {
       const result = await runFn();
       if (isOk(result)) {
         return result as ResultValue<T | U, F>;
       }
       return (await resolveAsyncInput(await fn(result.error))) as ResultValue<T | U, F>;
-    });
+    }, resolvers);
   }
 
   catchTag<TTag extends ExtractTag<E>, U, F>(
@@ -249,6 +297,8 @@ export class AsyncResultChain<T, E> {
     fn: (error: ExtractByTag<E, TTag>) => AsyncInput<U, F> | Promise<AsyncInput<U, F>>,
   ): AsyncResultChain<T | U, ExcludeByTag<E, TTag> | F> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveAsyncInput = resolvers.resolveAsyncInput;
     return new AsyncResultChain(async function runCatchTag() {
       const result = await runFn();
       if (isOk(result)) {
@@ -261,7 +311,7 @@ export class AsyncResultChain<T, E> {
         >;
       }
       return result as ResultValue<T | U, ExcludeByTag<E, TTag> | F>;
-    });
+    }, resolvers);
   }
 
   catchTags<THandlers extends AsyncHandlers<E>>(
@@ -271,6 +321,8 @@ export class AsyncResultChain<T, E> {
     ExcludeHandled<E, Extract<keyof THandlers, string>> | AsyncHandlerError<THandlers>
   > {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
+    const resolveAsyncInput = resolvers.resolveAsyncInput;
     type TOutValue = T | AsyncHandlerValue<THandlers>;
     type TOutError =
       | ExcludeHandled<E, Extract<keyof THandlers, string>>
@@ -295,7 +347,7 @@ export class AsyncResultChain<T, E> {
       }
 
       return result as ResultValue<TOutValue, TOutError>;
-    });
+    }, resolvers);
   }
 
   tapTag<TTag extends ExtractTag<E>>(
@@ -303,6 +355,7 @@ export class AsyncResultChain<T, E> {
     effect: (error: ExtractByTag<E, TTag>) => void | Promise<void>,
   ): AsyncResultChain<T, E> {
     const runFn = this.runFn;
+    const resolvers = this.resolvers;
     return new AsyncResultChain(async function runTapTag() {
       const result = await runFn();
       if (isErr(result) && hasErrorTagIn(result.error, tag)) {
@@ -313,7 +366,7 @@ export class AsyncResultChain<T, E> {
         }
       }
       return result;
-    });
+    }, resolvers);
   }
 
   async run(this: AsyncResultChain<T, never>): Promise<T> {
@@ -347,34 +400,3 @@ export class AsyncResultChain<T, E> {
     return result.value;
   }
 }
-
-export type ResolveSyncInput = <T, E>(input: SyncInput<T, E>) => ResultValue<T, E>;
-export type ResolveAsyncInput = <T, E>(
-  input: AsyncInput<T, E> | Promise<AsyncInput<T, E>>,
-) => Promise<ResultValue<T, E>>;
-
-let resolveSyncInputFn: ResolveSyncInput | undefined;
-let resolveAsyncInputFn: ResolveAsyncInput | undefined;
-
-export function setResolvers(resolveSync: ResolveSyncInput, resolveAsync: ResolveAsyncInput): void {
-  resolveSyncInputFn = resolveSync;
-  resolveAsyncInputFn = resolveAsync;
-}
-
-function resolveSyncInput<T, E>(input: SyncInput<T, E>): ResultValue<T, E> {
-  if (!resolveSyncInputFn) {
-    throw new Error('Sync resolver is not initialized.');
-  }
-  return resolveSyncInputFn(input);
-}
-
-async function resolveAsyncInput<T, E>(
-  input: AsyncInput<T, E> | Promise<AsyncInput<T, E>>,
-): Promise<ResultValue<T, E>> {
-  if (!resolveAsyncInputFn) {
-    throw new Error('Async resolver is not initialized.');
-  }
-  return resolveAsyncInputFn(input);
-}
-
-export { err };
