@@ -54,6 +54,28 @@ describe('Type inference', () => {
     }
   });
 
+  test('hasTags narrows from unknown and unions', () => {
+    const unknownValue: unknown = { _tag: 'NotFound', id: '42' };
+
+    if (Result.hasTags(unknownValue, ['NotFound', 'ValidationError'] as const)) {
+      expectTypeOf(unknownValue._tag).toEqualTypeOf<'NotFound' | 'ValidationError'>();
+    }
+
+    const unionValue:
+      | { _tag: 'NotFound'; id: string }
+      | { _tag: 'Unauthorized'; role: string }
+      | { _tag: 'ValidationError'; field: string } =
+      Math.random() > 0.5
+        ? { _tag: 'NotFound', id: '1' }
+        : Math.random() > 0.5
+          ? { _tag: 'Unauthorized', role: 'reader' }
+          : { _tag: 'ValidationError', field: 'email' };
+
+    if (Result.hasTags(unionValue, ['Unauthorized', 'ValidationError'] as const)) {
+      expectTypeOf(unionValue._tag).toEqualTypeOf<'Unauthorized' | 'ValidationError'>();
+    }
+  });
+
   test('tryAsync inference keeps value types through catchTags', async () => {
     const result = await Result.tryAsync(async () => {
       return err<AppError>(new Unauthorized({ role: 'reader' }));

@@ -41,6 +41,7 @@ export type AsyncHandlers<E> = Partial<{
   [K in ExtractTag<E>]: (error: ExtractByTag<E, K>) => unknown;
 }>;
 
+// Maps a handler return type back into the error side of Result-compatible inputs.
 type ErrorOfSyncInput<TInput> =
   TInput extends Ok<any>
     ? never
@@ -52,6 +53,7 @@ type ErrorOfSyncInput<TInput> =
           ? E
           : never;
 
+// Maps a handler return type back into the success side of Result-compatible inputs.
 type ValueOfSyncInput<TInput> =
   TInput extends Ok<infer T>
     ? T
@@ -63,6 +65,7 @@ type ValueOfSyncInput<TInput> =
           ? T
           : TInput;
 
+// Async variants mirror the sync mapping helpers but unwrap Promise-like returns first.
 type ErrorOfAsyncInput<TInput> =
   TInput extends Ok<any>
     ? never

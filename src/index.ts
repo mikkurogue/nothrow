@@ -104,6 +104,16 @@ function hasErrorTagIn<E, TTag extends ExtractTag<E>>(
   return hasTag(value, tag);
 }
 
+function unwrapOkOrThrow<T, E>(result: ResultValue<T, E>, context: string): T {
+  if (isErr(result)) {
+    throw new Error(
+      `${context} was called on an Err result. Handle errors with catchTag/catchTags/catchAll/match/unwrapOr first.`,
+      { cause: result.error },
+    );
+  }
+  return result.value;
+}
+
 function resolveSyncInput<T, E>(input: SyncInput<T, E>): ResultValue<T, E> {
   if (input instanceof SyncResultChain) {
     return input.toResult();
@@ -272,12 +282,12 @@ export class SyncResultChain<T, E> {
 
   run(this: SyncResultChain<T, never>): T {
     const result = this.runFn();
-    return (result as Ok<T>).value;
+    return unwrapOkOrThrow(result, 'SyncResultChain.run()');
   }
 
   get value(): [E] extends [never] ? T : never {
     const result = this.runFn();
-    return (result as Ok<T>).value as [E] extends [never] ? T : never;
+    return unwrapOkOrThrow(result, 'SyncResultChain.value') as [E] extends [never] ? T : never;
   }
 
   unwrapOr(fallback: T): T {
@@ -432,7 +442,7 @@ export class AsyncResultChain<T, E> {
 
   async run(this: AsyncResultChain<T, never>): Promise<T> {
     const result = await this.runFn();
-    return (result as Ok<T>).value;
+    return unwrapOkOrThrow(result, 'AsyncResultChain.run()');
   }
 
   async unwrapOr(fallback: T): Promise<T> {

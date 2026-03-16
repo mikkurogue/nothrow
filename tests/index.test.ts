@@ -52,6 +52,16 @@ describe('Result basics', () => {
     expect(value).toBe(8);
   });
 
+  test('run throws with helpful message when Err reaches runtime', () => {
+    const unsafe = Result.try(() => err(new DbError('SELECT *'))) as any;
+    expect(() => unsafe.run()).toThrow('SyncResultChain.run() was called on an Err result.');
+  });
+
+  test('value getter throws with helpful message when Err reaches runtime', () => {
+    const unsafe = Result.try(() => err(new DbError('SELECT *'))) as any;
+    expect(() => unsafe.value).toThrow('SyncResultChain.value was called on an Err result.');
+  });
+
   test('tapTag passes through and can observe errors', () => {
     let seen = '';
     const result = Result.try(() => err(new DbError('DELETE')))
@@ -83,6 +93,38 @@ describe('Result basics', () => {
     expect(Result.isErr(result)).toBe(true);
     if (Result.isErr(result)) {
       expect(result.error).toBeInstanceOf(TypeError);
+    }
+  });
+
+  test('catchTags handles direct values and chains from handlers', () => {
+    const directValue = Result.try(() => err(new DbError('INSERT')))
+      .catchTags({
+        DbError: (e) => e.query.length,
+      })
+      .unwrapOr(0);
+    expect(directValue).toBe(6);
+
+    const chainedValue = Result.try(() => err(new DbError('UPSERT')))
+      .catchTags({
+        DbError: (e) => Result.try(() => ok(e.query.length + 1)),
+      })
+      .unwrapOr(0);
+    expect(chainedValue).toBe(7);
+  });
+
+  test('fromThrowable maps thrown errors with custom mapper', () => {
+    const parse = Result.fromThrowable(
+      () => {
+        throw new Error('bad parse');
+      },
+      (caught) => new DbError(`mapper:${(caught as Error).message}`),
+    );
+
+    const out = parse();
+    expect(Result.isErr(out)).toBe(true);
+    if (Result.isErr(out)) {
+      expect(out.error).toBeInstanceOf(DbError);
+      expect(out.error.query).toBe('mapper:bad parse');
     }
   });
 
@@ -156,5 +198,28 @@ describe('AsyncResult chain via Result.tryAsync', () => {
     }).unwrapOr(0);
 
     expect(value).toBe(7);
+  });
+
+  test('async run throws with helpful message when Err reaches runtime', async () => {
+    const unsafe = Result.tryAsync(async () => err(new DbError('SELECT *'))) as any;
+    await expect(unsafe.run()).rejects.toThrow(
+      'AsyncResultChain.run() was called on an Err result.',
+    );
+  });
+
+  test('async catchTags handles direct values and async chains from handlers', async () => {
+    const directValue = await Result.tryAsync(async () => err(new DbError('PATCH')))
+      .catchTags({
+        DbError: (e) => e.query.length,
+      })
+      .unwrapOr(0);
+    expect(directValue).toBe(5);
+
+    const chainedValue = await Result.tryAsync(async () => err(new DbError('MERGE')))
+      .catchTags({
+        DbError: async (e) => Result.tryAsync(async () => ok(e.query.length + 2)),
+      })
+      .unwrapOr(0);
+    expect(chainedValue).toBe(7);
   });
 });

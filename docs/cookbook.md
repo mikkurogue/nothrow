@@ -2,6 +2,12 @@
 
 Practical examples for building robust error flows with `nothrow`.
 
+## Choosing an error shape
+
+- Prefer `TaggedError` for boundaries (HTTP handlers, DB layers, background jobs, public APIs).
+- Use object errors for compact, local validation flows where extending `Error` is unnecessary.
+- Mix both styles when useful: normalize foreign errors to `TaggedError` at boundaries, keep internal stages lightweight.
+
 ## API client with typed recoveries
 
 ```ts
