@@ -1,0 +1,60 @@
+{
+  "name": "nothrow",
+  "version": "0.0.1",
+  "description": "Lightweight Result-based error handling for TypeScript.",
+  "keywords": [
+    "error-handling",
+    "functional",
+    "result",
+    "tagged-errors",
+    "typescript"
+  ],
+  "homepage": "https://github.com/mikku/nothrow#readme",
+  "bugs": {
+    "url": "https://github.com/mikku/nothrow/issues"
+  },
+  "license": "MIT",
+  "author": "mikku",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mikku/nothrow.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "lint": "vp lint",
+    "fmt": "vp fmt . --write",
+    "fmt:check": "vp fmt . --check",
+    "check": "vp check",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "vp run build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "@typescript/native-preview": "7.0.0-dev.20260309.1",
+    "bumpp": "^10.4.1",
+    "typescript": "^5.9.3",
+    "vite-plus": "latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "pnpm": {
+    "overrides": {
+      "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+      "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    }
+  }
+}
