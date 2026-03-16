@@ -95,6 +95,54 @@ const user = loadUser('0')
   .run();
 ```
 
+## Generator style (`yield*`)
+
+`Result.try` and `Result.tryAsync` support generator-based composition. This gives you early-exit behavior with linear, imperative-looking code.
+
+```ts
+import { Result, err, ok } from 'nothrow';
+
+const readPort = (value: string) =>
+  Result.try(() => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) {
+      return err({ _tag: 'InvalidPort', value });
+    }
+    return ok(parsed);
+  });
+
+const normalizePort = (raw: string) =>
+  Result.try(function* () {
+    const port = yield* readPort(raw);
+    if (port < 1 || port > 65535) {
+      return err({ _tag: 'PortOutOfRange', port });
+    }
+    return ok(port);
+  });
+```
+
+Async generators can mix sync and async chains in the same flow:
+
+```ts
+import { Result, ok } from 'nothrow';
+
+const loadConfig = () => Result.tryAsync(async () => ok({ retry: 2 }));
+const readEnv = () => Result.try(() => ok('prod'));
+
+const buildRuntime = Result.tryAsync(function* () {
+  const config = yield* loadConfig();
+  const env = yield* readEnv();
+  return ok({ env, retry: config.retry });
+});
+```
+
+Generator gotchas:
+
+- Use `yield*` with `Result.try(...)` / `Result.tryAsync(...)` chains. Plain `yield` is not the intended API.
+- In `Result.try` (sync), yielding async values throws a `TypeError` by design.
+- In `Result.tryAsync`, both sync and async chains are supported.
+- Throwing inside the generator is captured and converted to `Err`.
+
 ## Development
 
 This repo uses Vite+ (`vp`) for local tooling.

@@ -106,3 +106,80 @@ const profile = readProfile('missing')
   })
   .run();
 ```
+
+## Generator-style orchestration with early exit
+
+```ts
+import { Result, err, ok } from 'nothrow';
+
+const parseLimit = (input: string) =>
+  Result.try(() => {
+    const value = Number(input);
+    if (!Number.isInteger(value)) {
+      return err({ _tag: 'InvalidLimit', input });
+    }
+    return ok(value);
+  });
+
+const parseOffset = (input: string) =>
+  Result.try(() => {
+    const value = Number(input);
+    if (!Number.isInteger(value)) {
+      return err({ _tag: 'InvalidOffset', input });
+    }
+    return ok(value);
+  });
+
+const parsePagination = (limitRaw: string, offsetRaw: string) =>
+  Result.try(function* () {
+    const limit = yield* parseLimit(limitRaw);
+    const offset = yield* parseOffset(offsetRaw);
+
+    if (limit <= 0) {
+      return err({ _tag: 'InvalidLimit', input: String(limit) });
+    }
+
+    if (offset < 0) {
+      return err({ _tag: 'InvalidOffset', input: String(offset) });
+    }
+
+    return ok({ limit, offset });
+  });
+
+const pagination = parsePagination('20', '0').unwrapOr({ limit: 10, offset: 0 });
+```
+
+## Async generator flow mixing sync and async
+
+```ts
+import { Result, err, ok } from 'nothrow';
+
+const fetchUser = (id: string) =>
+  Result.tryAsync(async () => {
+    if (id === '0') {
+      return err({ _tag: 'NotFound', id });
+    }
+    return ok({ id, orgId: 'acme' });
+  });
+
+const readRegion = () => Result.try(() => ok('us-east-1'));
+
+const buildContext = (userId: string) =>
+  Result.tryAsync(function* () {
+    const user = yield* fetchUser(userId);
+    const region = yield* readRegion();
+    return ok({ user, region });
+  });
+
+const context = await buildContext('42').unwrapOr({
+  user: { id: 'guest', orgId: 'public' },
+  region: 'local',
+});
+```
+
+### Generator gotchas
+
+- Always compose chains with `yield*`.
+- `Result.try` is sync-only and rejects async yielded values.
+- `Result.tryAsync` can consume both sync and async chain yields.
+- Thrown errors inside generator bodies are safely wrapped as `Err`.
